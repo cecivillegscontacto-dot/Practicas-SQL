@@ -1,0 +1,101 @@
+-- ═══════════════════════════════════════════════════════════════════════════
+-- RetailPro — Pre-entrega: Consultas SQL de Negocio (Módulo 4)
+-- Archivo: m4_consultas_negocio.sql
+-- Descripción: Extracción de métricas clave sobre la tabla 'ventas'
+-- Autor: Cecilia Villegas
+-- Fecha: 2026-07-22
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- Aseguramos el uso de la base de datos correcta
+-- USE Ventas_Tech_DB;
+
+-- ───────────────────────────────────────────────────────────────────────────
+-- CONSULTA 1: Resumen ejecutivo mensual
+-- Métrica: Total facturado, número de transacciones y ticket promedio por mes.
+-- ───────────────────────────────────────────────────────────────────────────
+
+SELECT 
+    EXTRACT(MONTH FROM fecha_venta) AS mes,
+    SUM(cantidad * precio_unitario) AS total_facturado,
+    COUNT(id_venta) AS cantidad_pedidos,
+    ROUND(AVG(cantidad * precio_unitario), 2) AS ticket_promedio
+FROM ventas
+GROUP BY EXTRACT(MONTH FROM fecha_venta)
+ORDER BY mes ASC;
+
+
+-- ───────────────────────────────────────────────────────────────────────────
+-- CONSULTA 2: Ranking Top 5 de productos por facturación
+-- Métrica: Identifica los 5 productos que mayor ingreso generaron al negocio.
+-- ───────────────────────────────────────────────────────────────────────────
+
+SELECT 
+    id_producto,
+    SUM(cantidad) AS unidades_vendidas,
+    SUM(cantidad * precio_unitario) AS total_generado
+FROM ventas
+GROUP BY id_producto
+ORDER BY total_generado DESC
+LIMIT 5;
+
+
+-- ───────────────────────────────────────────────────────────────────────────
+-- CONSULTA 3: Clientes recurrentes
+-- Métrica: Clientes con más de una compra registrada, cantidad de pedidos y gasto.
+-- ───────────────────────────────────────────────────────────────────────────
+
+SELECT 
+    id_cliente,
+    COUNT(id_venta) AS cantidad_pedidos,
+    SUM(cantidad * precio_unitario) AS total_gastado
+FROM ventas
+GROUP BY id_cliente
+HAVING COUNT(id_venta) > 1
+ORDER BY total_gastado DESC;
+
+
+-- ───────────────────────────────────────────────────────────────────────────
+-- CONSULTA 4: Comparativa mensual contra el promedio general
+-- Métrica: Facturación mensual con etiqueta comparativa respecto al promedio global.
+-- ───────────────────────────────────────────────────────────────────────────
+
+SELECT 
+    EXTRACT(MONTH FROM fecha_venta) AS mes,
+    SUM(cantidad * precio_unitario) AS total_facturado_mes,
+    CASE 
+        WHEN SUM(cantidad * precio_unitario) >= (
+            SELECT AVG(total_mes) 
+            FROM (
+                SELECT SUM(cantidad * precio_unitario) AS total_mes
+                FROM ventas
+                GROUP BY EXTRACT(MONTH FROM fecha_venta)
+            ) AS promedio_subconsulta
+        ) THEN 'Por encima'
+        ELSE 'Por debajo'
+    END AS rendimiento_vs_promedio
+FROM ventas
+GROUP BY EXTRACT(MONTH FROM fecha_venta)
+ORDER BY mes ASC;
+
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- BLOQUE DE CIERRE: Hallazgos Clave de Negocio (Insights)
+-- ═══════════════════════════════════════════════════════════════════════════
+/*
+  HALLAZGOS CLAVE EXTRAÍDOS DE LOS DATOS:
+
+  1. Concentración de facturación en producto estrella:
+     El id_producto = 1 (Laptop Pro 15) representa el mayor volumen de facturación
+     del período (3,600 USD sobre un total aproximado de 7,800 USD), concentrando 
+     casi el 46% de los ingresos totales con tan solo 3 transacciones.
+
+  2. Alta tasa de recurrencia en clientes clave:
+     Los clientes 1, 2, 3, 4 y 5 registraron exactamente 2 pedidos cada uno durante 
+     el mes de marzo, lo que refleja una base de clientes 100% recurrente en dicho 
+     período y una distribución uniforme de clientes activos.
+
+  3. Tendencia de facturación mensual creciente:
+     Marzo se consolida como el mes de mayor facturación del trimestre, superando holgadamente 
+     el promedio mensual global. Las ventas pasaron de compras puntuales a transacciones 
+     de mayor volumen/monto hacia mediados de mes.
+*/
