@@ -7,7 +7,7 @@
 -- ═══════════════════════════════════════════════════════════════════════════
 
 -- Aseguramos el uso de la base de datos correcta
--- USE Ventas_Tech_DB;
+USE Ventas_Tech_DB;
 
 -- ───────────────────────────────────────────────────────────────────────────
 -- CONSULTA 1: Resumen ejecutivo mensual
@@ -15,12 +15,12 @@
 -- ───────────────────────────────────────────────────────────────────────────
 
 SELECT 
-    EXTRACT(MONTH FROM fecha_venta) AS mes,
+    MONTH(fecha_venta) AS mes,
     SUM(cantidad * precio_unitario) AS total_facturado,
     COUNT(id_venta) AS cantidad_pedidos,
     ROUND(AVG(cantidad * precio_unitario), 2) AS ticket_promedio
 FROM ventas
-GROUP BY EXTRACT(MONTH FROM fecha_venta)
+GROUP BY MONTH(fecha_venta)
 ORDER BY mes ASC;
 
 
@@ -29,14 +29,14 @@ ORDER BY mes ASC;
 -- Métrica: Identifica los 5 productos que mayor ingreso generaron al negocio.
 -- ───────────────────────────────────────────────────────────────────────────
 
-SELECT 
+SELECT TOP 5
     id_producto,
     SUM(cantidad) AS unidades_vendidas,
     SUM(cantidad * precio_unitario) AS total_generado
 FROM ventas
 GROUP BY id_producto
-ORDER BY total_generado DESC
-LIMIT 5;
+ORDER BY total_generado DESC;
+
 
 
 -- ───────────────────────────────────────────────────────────────────────────
@@ -59,23 +59,31 @@ ORDER BY total_gastado DESC;
 -- Métrica: Facturación mensual con etiqueta comparativa respecto al promedio global.
 -- ───────────────────────────────────────────────────────────────────────────
 
+WITH FacturacionMensual AS (
+    -- 1. Calculamos el total facturado por cada mes
+    SELECT 
+        MONTH(fecha_venta) AS mes,
+        SUM(cantidad * precio_unitario) AS total_facturado_mes
+    FROM ventas
+    GROUP BY MONTH(fecha_venta)
+),
+PromedioGeneral AS (
+    -- 2. Obtenemos el promedio global basado en los totales de cada mes
+    SELECT AVG(total_facturado_mes) AS promedio_global
+    FROM FacturacionMensual
+)
+-- 3. Consulta final con la etiqueta comparativa
 SELECT 
-    EXTRACT(MONTH FROM fecha_venta) AS mes,
-    SUM(cantidad * precio_unitario) AS total_facturado_mes,
+    f.mes,
+    f.total_facturado_mes,
+    p.promedio_global,
     CASE 
-        WHEN SUM(cantidad * precio_unitario) >= (
-            SELECT AVG(total_mes) 
-            FROM (
-                SELECT SUM(cantidad * precio_unitario) AS total_mes
-                FROM ventas
-                GROUP BY EXTRACT(MONTH FROM fecha_venta)
-            ) AS promedio_subconsulta
-        ) THEN 'Por encima'
+        WHEN f.total_facturado_mes >= p.promedio_global THEN 'Por encima'
         ELSE 'Por debajo'
     END AS rendimiento_vs_promedio
-FROM ventas
-GROUP BY EXTRACT(MONTH FROM fecha_venta)
-ORDER BY mes ASC;
+FROM FacturacionMensual f
+CROSS JOIN PromedioGeneral p
+ORDER BY f.mes ASC;
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -94,6 +102,11 @@ ORDER BY mes ASC;
      el mes de marzo, lo que refleja una base de clientes 100% recurrente en dicho 
      período y una distribución uniforme de clientes activos.
 
+  3. Tendencia de facturación mensual creciente:
+     Marzo se consolida como el mes de mayor facturación del trimestre, superando holgadamente 
+     el promedio mensual global. Las ventas pasaron de compras puntuales a transacciones 
+     de mayor volumen/monto hacia mediados de mes.
+*/
   3. Tendencia de facturación mensual creciente:
      Marzo se consolida como el mes de mayor facturación del trimestre, superando holgadamente 
      el promedio mensual global. Las ventas pasaron de compras puntuales a transacciones 
